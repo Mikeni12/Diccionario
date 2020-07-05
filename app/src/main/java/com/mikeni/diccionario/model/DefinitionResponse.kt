@@ -14,7 +14,10 @@ data class DefinitionResponse(
         val partOfSpeech: String
     ) {
         data class Definition(
-            val definition: String
+            val definition: String,
+            val example: String,
+            val synonyms: List<String>,
+            val antonyms: List<String>
         )
     }
 
