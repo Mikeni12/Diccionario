@@ -1,12 +1,22 @@
 package com.mikeni.diccionario.view
 
+import android.Manifest
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.google.android.material.snackbar.Snackbar
-import androidx.appcompat.app.AppCompatActivity
+import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.snackbar.Snackbar
 import com.mikeni.diccionario.R
+import com.mikeni.diccionario.chathead.OverlayService
 
 class MainActivity : AppCompatActivity() {
 
@@ -15,9 +25,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         setSupportActionBar(findViewById(R.id.toolbar))
 
+        if (isMyServiceRunning(OverlayService::class.java))
+            stopService(Intent(this@MainActivity, OverlayService::class.java))
+
         findViewById<FloatingActionButton>(R.id.fab).setOnClickListener { view ->
             Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                    .setAction("Action", null).show()
+                .setAction("Action", null).show()
         }
     }
 
@@ -32,8 +45,60 @@ class MainActivity : AppCompatActivity() {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         return when (item.itemId) {
-            R.id.action_settings -> true
+            R.id.action_settings -> {
+                checkOverlayPermission()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    private fun checkOverlayPermission() {
+        //Check if the application has draw over other apps permission or not?
+        //This permission is by default available for API<23. But for API > 23
+        //you have to ask for the permission in runtime.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    this,
+                    Manifest.permission.SYSTEM_ALERT_WINDOW
+                )
+            ) {
+                AlertDialog.Builder(this)
+                    .setTitle("Permiso SMS")
+                    .setMessage("La app requiere accesos para enviar un SMS")
+                    .setPositiveButton("Pregúntame") { _, _ -> requestOverlayPermission() }
+                    .setNegativeButton("No") { _, _ -> }
+                    .show()
+            } else {
+                requestOverlayPermission()
+            }
+        } else {
+            startService(Intent(this@MainActivity, OverlayService::class.java))
+            finish()
+        }
+    }
+
+    private fun requestOverlayPermission() {
+        //If the draw over permission is not available open the settings screen
+        //to grant the permission.
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+        startActivityForResult(intent, CODE_DRAW_OVER_OTHER_APP_PERMISSION)
+    }
+
+    private fun isMyServiceRunning(serviceClass: Class<*>): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+            if (serviceClass.name == service.service.className) {
+                return true
+            }
+        }
+        return false
+    }
+
+    companion object {
+        private const val CODE_DRAW_OVER_OTHER_APP_PERMISSION = 2084
     }
 }
